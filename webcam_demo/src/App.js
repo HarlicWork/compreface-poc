@@ -27,6 +27,26 @@ function App() {
     extraCanvas.fillText( Number.parseFloat(box.probability).toPrecision(5) + '  ' + faceData.result[0].gender.value + '  ' + faceData.result[0].age.low + '-' + faceData.result[0].age.high, box.x_min, box.y_min - 10)
 
   }
+
+  const drawFaceFalse = (canvasElement, faceData, extraCanvas) => {
+    const evt = new Event("next_frame", {"bubbles":true, "cancelable":false});
+    document.dispatchEvent(evt);
+    let box = faceData.result[0].box;
+
+    canvasElement.clearRect(0, 0, 640, 480);
+    extraCanvas.clearRect(0, 0, 640, 480);
+
+    canvasElement.strokeStyle = 'red';
+    extraCanvas.strokeStyle = "blue";
+    extraCanvas.fillStyle = "white"
+
+    extraCanvas.lineWidth = 5;
+    canvasElement.lineWidth = 5;
+    
+    canvasElement.strokeRect(box.x_min, box.y_min, box.x_max - box.x_min, box.y_max - box.y_min);
+    extraCanvas.fillText( Number.parseFloat(box.probability).toPrecision(5) + '  ' + faceData.result[0].gender.value + '  ' + faceData.result[0].age.low + '-' + faceData.result[0].age.high, box.x_min, box.y_min - 10)
+
+  }
   
   const handleVideoStart = () => {
     navigator.mediaDevices.getUserMedia({ video: true})
@@ -35,12 +55,18 @@ function App() {
 
       videoTag.current.addEventListener('play', () => {
         // CompreFace init
-        let server = "http://localhost";
+        let server = "http://47.254.236.205"; // server hosting
         let port = 8000;
-        let detection_key = "00000000-0000-0000-0000-000000000003";
+        let detection_key = "8ee570cf-1914-4c57-a840-c2be7219edb7"; //this is api key from server
+        let options = {
+          det_prob_threshold: 0.8, 
+          prediction_count: 1,
+          face_plugins: "age,gender,subjects",
+        }
   
         let core = new CompreFace(server, port);
-        let detection_service = core.initFaceDetectionService(detection_key);
+        // let detection_service = core.initFaceDetectionService(detection_key);
+        let recognitionService = core.initFaceRecognitionService(detection_key);
         // end of CompreFace init
   
         let ctx1 = canvas1.current.getContext('2d');
@@ -50,9 +76,14 @@ function App() {
         document.addEventListener('next_frame', () => {
           ctx1.drawImage(videoTag.current, 0, 0, 640, 480)
           canvas1.current.toBlob( blob => {
-            detection_service.detect(blob, {  limit: 1, face_plugins: 'age,gender' })
+            recognitionService.recognize(blob, options)
               .then(res => {
-                drawFace(ctx2, res, ctx3)
+                if (res.result[0].subjects[0].similarity <= 0.98) {
+                  // alert("subject not simillar!")
+                  drawFaceFalse(ctx2, res, ctx3)
+                } else {
+                  drawFace(ctx2, res, ctx3)
+                }
               })
               .catch(error => console.log(error))
           }, 'image/jpeg', 0.95)
